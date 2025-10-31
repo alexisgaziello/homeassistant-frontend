@@ -15,6 +15,14 @@ class HaPickDashboardRow extends LitElement {
 
   @property({ type: Boolean }) public narrow = false;
 
+  @property({ type: String }) public headerKey = "ui.panel.profile.dashboard.header";
+
+  @property({ type: String }) public descriptionKey = "ui.panel.profile.dashboard.description";
+
+  @property({ type: String }) public currentValue?: string;
+
+  @property({ attribute: false }) public onDashboardChanged?: (urlPath: string) => void;
+
   @state() private _dashboards?: LovelaceDashboard[];
 
   protected firstUpdated(changedProps: PropertyValues) {
@@ -26,10 +34,10 @@ class HaPickDashboardRow extends LitElement {
     return html`
       <ha-settings-row .narrow=${this.narrow}>
         <span slot="heading">
-          ${this.hass.localize("ui.panel.profile.dashboard.header")}
+          ${this.hass.localize(this.headerKey)}
         </span>
         <span slot="description">
-          ${this.hass.localize("ui.panel.profile.dashboard.description")}
+          ${this.hass.localize(this.descriptionKey)}
         </span>
         ${this._dashboards
           ? html`<ha-select
@@ -37,7 +45,7 @@ class HaPickDashboardRow extends LitElement {
                 "ui.panel.profile.dashboard.dropdown_label"
               )}
               .disabled=${!this._dashboards?.length}
-              .value=${this.hass.defaultPanel}
+              .value=${this.currentValue ?? this.hass.defaultPanel}
               @selected=${this._dashboardChanged}
               naturalMenuWidth
             >
@@ -73,10 +81,17 @@ class HaPickDashboardRow extends LitElement {
 
   private _dashboardChanged(ev) {
     const urlPath = ev.target.value;
-    if (!urlPath || urlPath === this.hass.defaultPanel) {
+    const currentValue = this.currentValue ?? this.hass.defaultPanel;
+    if (!urlPath || urlPath === currentValue) {
       return;
     }
-    setDefaultPanel(this, urlPath);
+    
+    if (this.onDashboardChanged) {
+      this.onDashboardChanged(urlPath);
+    } else {
+      // Default behavior: use localStorage
+      setDefaultPanel(this, urlPath);
+    }
   }
 }
 

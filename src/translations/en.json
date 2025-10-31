@@ -8575,6 +8575,14 @@
           "dropdown_label": "Dashboard",
           "default_dashboard_label": "Overview (default)"
         },
+        "user_default_dashboard": {
+          "header": "User Default Dashboard",
+          "description": "Choose your default dashboard across all devices and browsers."
+        },
+        "browser_override_dashboard": {
+          "header": "Browser Override Dashboard",
+          "description": "Override the default dashboard for this browser only."
+        },
         "change_password": {
           "header": "Change password",
           "current_password": "Current password",

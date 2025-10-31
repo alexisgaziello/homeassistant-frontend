@@ -8,7 +8,7 @@ import "../../components/ha-button";
 import "../../components/ha-card";
 import { isExternal } from "../../data/external";
 import type { CoreFrontendUserData } from "../../data/frontend";
-import { subscribeFrontendUserData } from "../../data/frontend";
+import { subscribeFrontendUserData, saveFrontendUserData } from "../../data/frontend";
 import { showConfirmationDialog } from "../../dialogs/generic/show-dialog-box";
 import { showEditSidebarDialog } from "../../dialogs/sidebar/show-dialog-edit-sidebar";
 import "../../layouts/hass-tabs-subpage";
@@ -21,6 +21,7 @@ import "./ha-entity-id-picker-row";
 import "./ha-force-narrow-row";
 import { profileSections } from "./ha-panel-profile";
 import "./ha-pick-dashboard-row";
+import "./ha-pick-user-default-dashboard-row";
 import "./ha-pick-date-format-row";
 import "./ha-pick-first-weekday-row";
 import "./ha-pick-language-row";
@@ -67,6 +68,11 @@ class HaProfileSectionGeneral extends LitElement {
     if (!this._unsubCoreData) {
       this._getCoreData();
     }
+    
+    // Add event listener for user default dashboard selection
+    this.addEventListener("hass-user-default-dashboard-select", (e) => {
+      this._selectUserDefaultDashboard((e as CustomEvent).detail);
+    });
   }
 
   public disconnectedCallback() {
@@ -175,6 +181,11 @@ class HaProfileSectionGeneral extends LitElement {
                 )}
               </ha-button>
             </ha-settings-row>
+            <ha-pick-user-default-dashboard-row
+              .narrow=${this.narrow}
+              .hass=${this.hass}
+              .coreUserData=${this._coreUserData}
+            ></ha-pick-user-default-dashboard-row>
             ${this.hass.user!.is_admin
               ? html`
                   <ha-advanced-mode-row
@@ -208,10 +219,11 @@ class HaProfileSectionGeneral extends LitElement {
               .narrow=${this.narrow}
               .hass=${this.hass}
             ></ha-pick-theme-row>
-            <ha-pick-dashboard-row
+            <ha-pick-user-default-dashboard-row
               .narrow=${this.narrow}
               .hass=${this.hass}
-            ></ha-pick-dashboard-row>
+              .coreUserData=${this._coreUserData}
+            ></ha-pick-user-default-dashboard-row>
             ${this.hass.dockedSidebar !== "auto" || !this.narrow
               ? html`
                   <ha-force-narrow-row
@@ -257,6 +269,58 @@ class HaProfileSectionGeneral extends LitElement {
 
   private _customizeSidebar() {
     showEditSidebarDialog(this);
+  }
+
+  private async _selectUserDefaultDashboard(urlPath: string) {
+    try {
+      await saveFrontendUserData(this.hass.connection, "core", {
+        ...this._coreUserData,
+        defaultPanel: urlPath,
+      });
+
+      // Update hass.defaultPanel immediately, honoring browser override if any
+      let effective = urlPath;
+      try {
+        const override = window.localStorage.getItem("defaultPanel");
+        if (override) {
+          const parsed = JSON.parse(override);
+          if (parsed) effective = parsed;
+        }
+      } catch (_e) {
+        // ignore parse errors
+      }
+      this._updateHass({ defaultPanel: effective });
+    } catch (err: any) {
+      // TODO: Show error message to user
+      // eslint-disable-next-line no-console
+      console.error("Failed to save user default dashboard:", err);
+    }
+  }
+
+  private async _selectUserDefaultDashboard(urlPath: string) {
+    try {
+      await saveFrontendUserData(this.hass.connection, "core", {
+        ...this._coreUserData,
+        defaultPanel: urlPath,
+      });
+
+      // Update hass.defaultPanel immediately, honoring browser override if present
+      let effective = urlPath;
+      try {
+        const override = window.localStorage.getItem("defaultPanel");
+        if (override) {
+          const parsed = JSON.parse(override);
+          if (parsed) effective = parsed;
+        }
+      } catch (_e) {
+        // ignore parse errors
+      }
+      this._updateHass({ defaultPanel: effective });
+    } catch (err: any) {
+      // TODO: Show error message to user
+      // eslint-disable-next-line no-console
+      console.error("Failed to save user default dashboard:", err);
+    }
   }
 
   private _handleLogOut() {

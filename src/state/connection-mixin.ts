@@ -30,7 +30,7 @@ import { translationMetadata } from "../resources/translations-metadata";
 import type { Constructor, HomeAssistant, ServiceCallResponse } from "../types";
 import { getLocalLanguage } from "../util/common-translation";
 import { fetchWithAuth } from "../util/fetch-with-auth";
-import { getState } from "../util/ha-pref-storage";
+import { getState, getStateWithUserPreferences } from "../util/ha-pref-storage";
 import hassCallApi, { hassCallApiRaw } from "../util/hass-call-api";
 import type { HassBaseEl } from "./hass-base-mixin";
 import { computeStateName } from "../common/entity/compute_state_name";
@@ -235,6 +235,9 @@ export const connectionMixin = <T extends Constructor<HassBaseEl>>(
       });
 
       subscribeEntities(conn, (states) => this._updateHass({ states }));
+      
+      // Load user preferences from backend and update hass object
+      this._loadUserPreferences(conn);
       subscribeEntityRegistryDisplay(conn, (entityReg) => {
         const entities: HomeAssistant["entities"] = {};
         for (const entity of entityReg.entities) {
@@ -283,7 +286,22 @@ export const connectionMixin = <T extends Constructor<HassBaseEl>>(
       subscribeServices(conn, (services) => this._updateHass({ services }));
       subscribePanels(conn, (panels) => this._updateHass({ panels }));
       subscribeFrontendUserData(conn, "core", ({ value: userData }) => {
+        // Update userData on hass
         this._updateHass({ userData });
+        // Resolve effective default panel: browser override > user default > system default
+        let effective = DEFAULT_PANEL;
+        try {
+          const override = window.localStorage.getItem("defaultPanel");
+          if (override) {
+            const parsed = JSON.parse(override);
+            if (parsed) effective = parsed;
+          } else if (userData?.defaultPanel) {
+            effective = userData.defaultPanel;
+          }
+        } catch (_e) {
+          // ignore parse errors and fall back
+        }
+        this._updateHass({ defaultPanel: effective });
       });
 
       clearInterval(this.__backendPingInterval);
@@ -321,6 +339,19 @@ export const connectionMixin = <T extends Constructor<HassBaseEl>>(
         this._updateHass({ config });
         this.checkDataBaseMigration();
       });
+    }
+
+    private async _loadUserPreferences(conn: Connection) {
+      try {
+        // Load user preferences with hierarchical resolution
+        const userState = await getStateWithUserPreferences(conn);
+        
+        // Update hass object with user preferences (localStorage overrides are already applied)
+        this._updateHass(userState);
+      } catch (err) {
+        // If loading user preferences fails, continue with localStorage-only preferences
+        console.debug("Could not load user preferences, using localStorage only:", err);
+      }
     }
 
     protected hassDisconnected() {
